@@ -1,7 +1,7 @@
 import type { DatabaseClient } from '../db/database.types.ts';
 
 /**
- * 방을 만든다. 같은 ID의 방이 열려 있으면 아무것도 하지 않고 `false`를 돌려준다.
+ * 방을 만들고 새 방의 회차를 돌려준다. 같은 ID의 방이 열려 있으면 아무것도 하지 않고 `null`을 돌려준다.
  * 같은 ID가 있더라도 이미 닫혔거나 유효기간이 지난 방이면 새 방으로 다시 연다
  * (방장 열쇠와 만든 시각을 새로 쓴다).
  *
@@ -13,8 +13,8 @@ export async function insertRoom(
   roomId: string,
   ownerKeyHash: string,
   roomTtlHours: number,
-): Promise<boolean> {
-  const opened = await database`
+): Promise<number | null> {
+  const opened = await database<{ generation: string }[]>`
     INSERT INTO rooms (room_id, owner_key_hash)
     VALUES (${roomId}, ${ownerKeyHash})
     ON CONFLICT (room_id) DO UPDATE
@@ -23,7 +23,8 @@ export async function insertRoom(
           closed_at = NULL
       WHERE rooms.closed_at IS NOT NULL
          OR rooms.created_at <= now() - make_interval(hours => ${roomTtlHours})
-    RETURNING room_id
+    RETURNING (extract(epoch FROM created_at) * 1000)::bigint AS generation
   `;
-  return opened.length === 1;
+  const generation = opened[0]?.generation;
+  return generation === undefined ? null : Number(generation);
 }

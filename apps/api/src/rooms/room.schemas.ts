@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
-import { NICKNAME_MAX_LENGTH, OWNER_KEY_MAX_LENGTH, ROOM_ID_PATTERN } from './room.constants.ts';
+import {
+  NICKNAME_WITHOUT_CONTROL_CHARS_PATTERN,
+  NICKNAME_MAX_LENGTH,
+  OWNER_KEY_MAX_LENGTH,
+  ROOM_ID_PATTERN,
+} from './room.constants.ts';
 
 export const roomIdSchema = z.string().regex(ROOM_ID_PATTERN);
 
 export const roomJoinRequestSchema = z.object({
-  nickname: z.string().trim().min(1).max(NICKNAME_MAX_LENGTH),
+  // 제어 문자(NUL 등)는 받지 않는다. 화면에 안 보이고 DB에 저장할 수 없는 것도 있다.
+  nickname: z
+    .string()
+    .trim()
+    .min(1)
+    .max(NICKNAME_MAX_LENGTH)
+    .regex(NICKNAME_WITHOUT_CONTROL_CHARS_PATTERN),
   /** 방장만 보낸다. 맞으면 방장으로, 없거나 틀리면 일반 참여자로 입장한다. */
   ownerKey: z.string().min(1).max(OWNER_KEY_MAX_LENGTH).optional(),
 });

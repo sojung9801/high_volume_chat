@@ -8,6 +8,9 @@ export const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 export const NICKNAME_MAX_LENGTH = 20;
 
+/** 제어 문자가 하나도 없는 문자열. */
+export const NICKNAME_WITHOUT_CONTROL_CHARS_PATTERN = /^\P{Cc}*$/u;
+
 export const GATEWAY_REQUEST_TIMEOUT_MS = 2000;
 
 /** 방장 열쇠 길이. 추측할 수 없을 만큼 길게 둔다. */

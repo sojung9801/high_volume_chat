@@ -8,7 +8,12 @@ export async function signRoomJoinToken(
   claims: RoomJoinTokenClaims,
   secret: string,
 ): Promise<string> {
-  return new SignJWT({ room: claims.roomId, nick: claims.nickname, owner: claims.isOwner })
+  return new SignJWT({
+    room: claims.roomId,
+    nick: claims.nickname,
+    owner: claims.isOwner,
+    gen: claims.generation,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.userId)
     .setAudience(JOIN_TOKEN_AUDIENCE)

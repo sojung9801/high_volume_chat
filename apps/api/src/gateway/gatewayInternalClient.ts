@@ -13,12 +13,21 @@ export async function fetchGatewayRoomStats(gatewayInternalUrl: string): Promise
   return roomStatsListSchema.parse(await response.json());
 }
 
-/** 게이트웨이에 붙어 있는 이 방의 연결을 모두 내보낸다. */
-export async function closeGatewayRoom(gatewayInternalUrl: string, roomId: string): Promise<void> {
-  const response = await fetch(
-    new URL(`/internal/rooms/${encodeURIComponent(roomId)}/close`, gatewayInternalUrl),
-    { method: 'POST', signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS) },
-  );
+/**
+ * 게이트웨이에서 이 방을 `generation` 회차까지 닫는다. 붙어 있는 연결을 모두 내보내고,
+ * 그 회차의 입장 토큰으로는 다시 들어오지 못하게 한다.
+ */
+export async function closeGatewayRoom(
+  gatewayInternalUrl: string,
+  roomId: string,
+  generation: number,
+): Promise<void> {
+  const url = new URL(`/internal/rooms/${encodeURIComponent(roomId)}/close`, gatewayInternalUrl);
+  url.searchParams.set('generation', String(generation));
+  const response = await fetch(url, {
+    method: 'POST',
+    signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`gateway responded with ${response.status}`);
   }
