@@ -1,0 +1,25 @@
+{
+  "name": "high-volume-chat",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "proto:gen": "buf generate",
+    "dev:gateway": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo run --manifest-path gateway/Cargo.toml",
+    "dev:api": "npm run dev -w @high-volume-chat/api",
+    "dev:web": "npm run dev -w @high-volume-chat/web",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "typecheck": "npm run typecheck --workspaces",
+    "test:gateway": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo test --manifest-path gateway/Cargo.toml",
+    "test:gateway:load": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo test --release --manifest-path gateway/Cargo.toml --test high_volume -- --nocapture",
+    "archive:sql": "node --env-file=.env tools/archive-sql.mjs",
+    "loadgen": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo run --release --manifest-path gateway/Cargo.toml --example loadgen --"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.75.0",
+    "@bufbuild/protoc-gen-es": "^2.17.0",
+    "@duckdb/node-api": "^2.0.1-r.1"
+  }
+}

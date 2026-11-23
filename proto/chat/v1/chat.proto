@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package chat.v1;
+
+// 게이트웨이 <-> 클라이언트 WebSocket 바이너리 프레임 정의.
+// Rust(prost)와 TS(protobuf-es) 타입이 이 파일 하나에서 생성된다.
+
+message ChatMessage {
+  // 방 단위 단조 증가. 재접속 복구와 렌더링 key에 사용.
+  uint64 seq = 1;
+  string user_id = 2;
+  string nickname = 3;
+  string text = 4;
+  int64 sent_at_ms = 5;
+  // 방장이 보낸 메시지인지.
+  bool is_owner = 6;
+}
+
+// 서버는 메시지를 개별 전송하지 않고 flush 주기마다 묶어서 보낸다.
+message MessageBatch {
+  repeated ChatMessage messages = 1;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_RATE_LIMITED = 1;
+  ERROR_CODE_INVALID_MESSAGE = 2;
+}
+
+message ServerError {
+  ErrorCode code = 1;
+}
+
+// 방장이 방을 닫았다. 이 프레임 뒤에 서버가 연결을 끊는다.
+message RoomClosed {}
+
+message ServerFrame {
+  oneof payload {
+    MessageBatch batch = 1;
+    ServerError error = 2;
+    RoomClosed room_closed = 3;
+  }
+}
+
+message SendMessage {
+  string text = 1;
+}
+
+message ClientFrame {
+  oneof payload {
+    SendMessage send_message = 1;
+  }
+}
