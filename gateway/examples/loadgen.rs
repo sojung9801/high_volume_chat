@@ -2,7 +2,8 @@
 //!
 //!   cargo run --release --example loadgen -- <방 ID> <봇 수> <초>
 //!
-//! `.env`의 `JOIN_TOKEN_SECRET`으로 입장 토큰을 서명하고 `GATEWAY_PUBLIC_WS_URL`로 접속한다.
+//! 방은 먼저 만들어져 있어야 한다 (브라우저에서 "방 만들기"). 관리 API에 방의 회차를 물어본 뒤
+//! `.env`의 `JOIN_TOKEN_SECRET`으로 입장 토큰을 직접 서명하고 `GATEWAY_PUBLIC_WS_URL`로 접속한다.
 //! 봇도 실제 사용자와 같은 rate limit을 받는다.
 
 use std::{
@@ -22,7 +23,7 @@ use chat_gateway::proto::chat::v1::{
 use futures_util::{SinkExt, StreamExt, future::join_all};
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use prost::Message as _;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 const JOIN_TOKEN_AUDIENCE: &str = "chat-gateway";
@@ -36,6 +37,9 @@ struct JoinTokenClaims<'a> {
     sub: &'a str,
     room: &'a str,
     nick: &'a str,
+    /// 방의 회차. 게이트웨이는 닫힌 회차나 지난 회차의 토큰을 받지 않는다.
+    #[serde(rename = "gen")]
+    generation: u64,
     aud: &'a str,
     exp: u64,
 }
@@ -53,12 +57,36 @@ fn parse_arg<T: FromStr>(args: &[String], index: usize, name: &str) -> Result<T>
         .map_err(|_| anyhow!("{name} has an invalid value {raw:?}\n{USAGE}"))
 }
 
-fn sign_join_token(secret: &str, room_id: &str, bot_name: &str) -> Result<String> {
+#[derive(Deserialize)]
+struct OpenRoom {
+    generation: u64,
+}
+
+/// 관리 API에 방이 열려 있는지 묻고 회차를 받는다.
+async fn fetch_room_generation(api_port: &str, room_id: &str) -> Result<u64> {
+    let url = format!("http://127.0.0.1:{api_port}/v1/rooms/{room_id}");
+    let response = reqwest::get(&url)
+        .await
+        .with_context(|| format!("cannot reach the API at {url}"))?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(anyhow!("room {room_id:?} is not open. Create it in the browser first"));
+    }
+    let room: OpenRoom = response.error_for_status()?.json().await?;
+    Ok(room.generation)
+}
+
+fn sign_join_token(
+    secret: &str,
+    room_id: &str,
+    bot_name: &str,
+    generation: u64,
+) -> Result<String> {
     let exp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() + JOIN_TOKEN_TTL_SEC;
     let claims = JoinTokenClaims {
         sub: bot_name,
         room: room_id,
         nick: bot_name,
+        generation,
         aud: JOIN_TOKEN_AUDIENCE,
         exp,
     };
@@ -129,6 +157,8 @@ async fn main() -> Result<()> {
 
     let secret = env::var("JOIN_TOKEN_SECRET").context("JOIN_TOKEN_SECRET is required")?;
     let ws_url = env::var("GATEWAY_PUBLIC_WS_URL").context("GATEWAY_PUBLIC_WS_URL is required")?;
+    let api_port = env::var("API_PORT").context("API_PORT is required")?;
+    let generation = fetch_room_generation(&api_port, &room_id).await?;
 
     let counters = Arc::new(Counters::default());
     let deadline = Instant::now() + Duration::from_secs(seconds);
@@ -137,7 +167,7 @@ async fn main() -> Result<()> {
     let mut tasks = Vec::with_capacity(bots);
     for index in 0..bots {
         let bot_name = format!("bot-{index}");
-        let token = sign_join_token(&secret, &room_id, &bot_name)?;
+        let token = sign_join_token(&secret, &room_id, &bot_name, generation)?;
         let start_delay = SEND_INTERVAL.mul_f64(index as f64 / bots as f64);
         tasks.push(tokio::spawn(run_bot(
             format!("{ws_url}?token={token}"),

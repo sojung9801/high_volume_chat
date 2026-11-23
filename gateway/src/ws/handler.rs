@@ -21,6 +21,10 @@ pub async fn ws_upgrade(
     Query(query): Query<JoinQuery>,
 ) -> Response {
     match state.verifier.verify(&query.token) {
+        // 서명이 맞아도 저장할 수 없는 문자(NUL)가 든 토큰은 받지 않는다.
+        Ok(claims) if has_nul(&claims.sub) || has_nul(&claims.nick) || has_nul(&claims.room) => {
+            StatusCode::UNAUTHORIZED.into_response()
+        }
         Ok(claims) => ws
             .max_message_size(state.session.max_frame_bytes)
             .on_upgrade(move |socket| run_session(socket, state, claims)),
@@ -29,4 +33,8 @@ pub async fn ws_upgrade(
             StatusCode::UNAUTHORIZED.into_response()
         }
     }
+}
+
+fn has_nul(value: &str) -> bool {
+    value.contains('\0')
 }

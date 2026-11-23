@@ -163,6 +163,22 @@ async fn many_users_sending_same_text_are_sampled_without_duplicates() {
     }
 }
 
+/// NUL 문자는 DB에 저장할 수 없다. 입구에서 거절한다.
+#[tokio::test(flavor = "multi_thread")]
+async fn text_containing_nul_is_rejected() {
+    let gateway = TestGateway::start(room_config(100), session_config()).await;
+    let mut sender = gateway.connect("nul-room", "sender").await;
+
+    send_text(&mut sender, "앞\u{0}뒤").await;
+    send_text(&mut sender, "정상 글").await;
+
+    let (messages, errors, _) =
+        split_payloads(collect_until_quiet(&mut sender, QUIET_PERIOD).await);
+    assert_eq!(errors, [i32::from(ErrorCode::InvalidMessage)]);
+    let texts: Vec<&str> = messages.iter().map(|message| message.text.as_str()).collect();
+    assert_eq!(texts, ["정상 글"]);
+}
+
 /// rate limit은 연결 단위다. 같은 사용자가 연결을 새로 열면 버킷도 새로 받는다.
 #[tokio::test(flavor = "multi_thread")]
 async fn rate_limit_is_scoped_to_one_connection() {

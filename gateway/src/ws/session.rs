@@ -20,9 +20,13 @@ use crate::{
 /// 연결 하나의 수명. 방 프레임을 내려보내고 클라이언트 프레임을 받는다.
 pub async fn run_session(socket: WebSocket, state: AppState, claims: JoinClaims) {
     let config = state.session;
-    let mut membership = state.rooms.join(&claims.room);
-    let room = membership.room();
     let (mut sink, mut stream) = socket.split();
+    // 닫힌 방이거나 지난 회차의 토큰이면 들이지 않는다. 이유를 알려주고 끊는다.
+    let Some(mut membership) = state.rooms.join(&claims.room, claims.generation) else {
+        send_frame(&mut sink, encode_room_closed(), config.send_timeout).await;
+        return;
+    };
+    let room = membership.room();
     let mut limiter = TokenBucket::new(config.rate_limit_burst, config.rate_limit_per_sec);
     let mut closed = room.closed_signal();
 
@@ -77,7 +81,9 @@ fn handle_client_frame(
             }
 
             let text = message.text.trim();
-            if text.is_empty() || text.chars().count() > config.max_text_chars {
+            // NUL 문자는 PostgreSQL의 text에 저장할 수 없다. 받지 않는다.
+            if text.is_empty() || text.contains('\0') || text.chars().count() > config.max_text_chars
+            {
                 return Some(ErrorCode::InvalidMessage);
             }
 

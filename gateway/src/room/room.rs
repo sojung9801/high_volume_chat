@@ -40,6 +40,8 @@ struct PendingBatch {
 
 pub struct Room {
     id: String,
+    /// 이 방의 회차. 회차 없는 토큰으로 처음 만들어진 방이면 `None`.
+    generation: Option<u64>,
     config: RoomConfig,
     store: MessageStore,
     archive: MessageArchive,
@@ -63,6 +65,7 @@ impl Room {
     /// 방을 만들고 flush 태스크를 띄운다. 태스크는 방이 drop되면 스스로 끝난다.
     pub fn spawn(
         id: String,
+        generation: Option<u64>,
         config: RoomConfig,
         store: MessageStore,
         archive: MessageArchive,
@@ -70,6 +73,7 @@ impl Room {
         let (frames, _) = broadcast::channel(config.broadcast_capacity);
         let room = Arc::new(Self {
             id,
+            generation,
             config,
             store,
             archive,
@@ -89,6 +93,10 @@ impl Room {
 
     pub fn id(&self) -> &str {
         &self.id
+    }
+
+    pub fn generation(&self) -> Option<u64> {
+        self.generation
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<Bytes> {

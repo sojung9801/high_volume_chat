@@ -97,12 +97,37 @@ async fn run_writer(
 
     // 쌓인 만큼 한 번에 꺼내 INSERT 한 번으로 쓴다. 모든 송신자가 사라지면 끝난다.
     while receiver.recv_many(&mut batch, batch_max_messages).await > 0 {
-        if let Err(err) = insert_batch(&pool, &batch).await {
-            unsaved_messages.fetch_add(batch.len() as u64, Ordering::Relaxed);
-            tracing::warn!(%err, count = batch.len(), "failed to store chat messages");
-        }
+        let unsaved = store_batch(&pool, &batch).await;
+        unsaved_messages.fetch_add(unsaved, Ordering::Relaxed);
         batch.clear();
     }
+}
+
+/// 묶음을 저장하고, 저장하지 못한 메시지 수를 돌려준다.
+///
+/// 묶음 INSERT가 **데이터 문제**로 거절되면(저장할 수 없는 값이 든 행이 하나라도 있으면
+/// 묶음 전체가 실패한다) 한 건씩 다시 넣어서 문제 있는 행만 버린다. 한 행 때문에
+/// 같은 묶음에 든 다른 방의 정상 메시지까지 잃지 않기 위해서다.
+///
+/// DB에 닿지 못하는 경우(연결 실패, 시간 초과)에는 한 건씩 다시 시도하지 않는다.
+/// 어차피 전부 실패하고, 그동안 대기줄만 밀린다.
+async fn store_batch(pool: &PgPool, batch: &[QueuedMessage]) -> u64 {
+    let Err(err) = insert_batch(pool, batch).await else {
+        return 0;
+    };
+    if !matches!(err, sqlx::Error::Database(_)) || batch.len() == 1 {
+        tracing::warn!(%err, count = batch.len(), "failed to store chat messages");
+        return batch.len() as u64;
+    }
+
+    let mut unsaved = 0;
+    for message in batch {
+        if let Err(err) = insert_batch(pool, std::slice::from_ref(message)).await {
+            unsaved += 1;
+            tracing::warn!(%err, room_id = %message.room_id, "dropped a chat message the database rejected");
+        }
+    }
+    unsaved
 }
 
 async fn insert_batch(pool: &PgPool, batch: &[QueuedMessage]) -> Result<(), sqlx::Error> {

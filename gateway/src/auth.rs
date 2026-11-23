@@ -14,6 +14,11 @@ pub struct JoinClaims {
     /// 방장인지. 관리 API가 방장 열쇠를 확인한 경우에만 true로 싣는다.
     #[serde(default)]
     pub owner: bool,
+    /// 방의 회차. 같은 ID로 방을 다시 열 때마다 커진다 (관리 API가 방을 만든 시각을 넣는다).
+    /// 닫힌 회차나 지난 회차의 토큰으로 들어오는 것을 막는 데 쓴다.
+    /// 개발 도구(loadgen, 테스트)가 직접 서명한 토큰에는 없을 수 있다.
+    #[serde(default, rename = "gen")]
+    pub generation: Option<u64>,
 }
 
 pub struct JoinTokenVerifier {

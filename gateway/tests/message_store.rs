@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chat_gateway::{
     config::{RoomConfig, SessionConfig},
-    proto::chat::v1::server_frame::Payload,
+    proto::chat::v1::{ChatMessage, server_frame::Payload},
 };
 use sqlx::{PgPool, Row};
 
@@ -197,4 +197,41 @@ async fn message_sent_just_before_the_room_empties_is_still_stored() {
     wait_for_row_count(&pool, &room_id, 1).await;
     let rows = stored_rows(&pool, &room_id).await;
     assert_eq!(rows[0].3, "나가기 직전의 글");
+}
+
+/// DB가 받아주지 않는 행이 하나 섞여도 같은 묶음의 다른 메시지는 저장된다.
+/// (입구에서 NUL을 막지만, 저장 쪽도 한 행의 실패를 묶음 전체로 번지게 하지 않는다.)
+#[tokio::test(flavor = "multi_thread")]
+async fn one_rejected_row_does_not_drop_the_rest_of_the_batch() {
+    let pool = PgPool::connect(&test_database_url())
+        .await
+        .expect("test database should be reachable (docker compose up -d)");
+    let gateway = TestGateway::start(room_config(), session_config()).await;
+    let room_id = unique_room_id("isolation-room");
+    let message = |seq: u64, text: &str| ChatMessage {
+        seq,
+        user_id: "writer".to_owned(),
+        nickname: "writer".to_owned(),
+        text: text.to_owned(),
+        sent_at_ms: 1_795_000_000_000 + seq as i64,
+        is_owner: false,
+    };
+
+    // 한 번의 enqueue로 넣어 같은 INSERT 묶음에 들어가게 한다.
+    gateway.message_store().enqueue(
+        &room_id,
+        &[message(1, "정상 1"), message(2, "저장 불가 \u{0}"), message(3, "정상 2")],
+    );
+
+    wait_for_row_count(&pool, &room_id, 2).await;
+    let bodies: Vec<String> = stored_rows(&pool, &room_id)
+        .await
+        .into_iter()
+        .map(|(_, _, _, body)| body)
+        .collect();
+    assert_eq!(bodies, ["정상 1", "정상 2"]);
+    wait_until("rejected row counted", WAIT_TIMEOUT, || {
+        gateway.store_stats().unsaved_messages == 1
+    })
+    .await;
 }

@@ -41,6 +41,8 @@ struct JoinTokenClaims<'a> {
     room: &'a str,
     nick: &'a str,
     owner: bool,
+    #[serde(rename = "gen", skip_serializing_if = "Option::is_none")]
+    generation: Option<u64>,
     aud: &'a str,
     exp: u64,
 }
@@ -150,6 +152,18 @@ impl TestGateway {
         nickname: &str,
         is_owner: bool,
     ) -> String {
+        self.join_token_with(room_id, user_id, nickname, is_owner, None)
+    }
+
+    /// `generation`: 방의 회차. 관리 API는 방을 만든 시각을 넣는다.
+    pub fn join_token_with(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        nickname: &str,
+        is_owner: bool,
+        generation: Option<u64>,
+    ) -> String {
         let exp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock should be after epoch")
@@ -160,6 +174,7 @@ impl TestGateway {
             room: room_id,
             nick: nickname,
             owner: is_owner,
+            generation,
             aud: JOIN_TOKEN_AUDIENCE,
             exp,
         };
@@ -188,9 +203,25 @@ impl TestGateway {
             .expect("owner should connect")
     }
 
-    /// 관리 API가 내부 포트로 요청했을 때와 같은 동작.
-    pub fn close_room(&self, room_id: &str) -> bool {
-        self.rooms.close(room_id)
+    pub async fn connect_in_generation(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        generation: u64,
+    ) -> ClientSocket {
+        let token = self.join_token_with(room_id, user_id, user_id, false, Some(generation));
+        self.connect_with_token(&token)
+            .await
+            .expect("client should connect")
+    }
+
+    /// 관리 API가 내부 포트로 요청했을 때와 같은 동작. `generation` 회차까지 닫는다.
+    pub fn close_room(&self, room_id: &str, generation: u64) -> bool {
+        self.rooms.close(room_id, generation)
+    }
+
+    pub fn message_store(&self) -> &MessageStore {
+        &self.store
     }
 
     pub fn room_stats(&self, room_id: &str) -> Option<RoomStats> {
