@@ -172,8 +172,8 @@ export function useChatRoomConnection({
           loadRoomOwnerKey(roomId),
           abortController.signal,
         );
-        if (result.status === 'roomNotFound') {
-          // 없는 방이거나 닫힌 방이다. 재접속을 예약하지 않고 여기서 끝낸다.
+        if (result.status === 'refused') {
+          // 없는 방, 닫힌 방, 받아들여지지 않는 요청이다. 재접속을 예약하지 않고 여기서 끝낸다.
           markRoomUnavailable();
           return;
         }

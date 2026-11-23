@@ -73,3 +73,6 @@ export const CHAT_AT_TOP_THRESHOLD_PX = 1;
 
 /** 이전 메시지가 붙은 뒤, 여전히 맨 위인지 다시 재기까지 기다리는 시간. */
 export const CHAT_LOAD_OLDER_RECHECK_MS = 150;
+
+/** 공백이 아닌 글자가 하나는 있어야 한다. `required`만으로는 공백뿐인 입력을 못 막는다. */
+export const CHAT_NICKNAME_PATTERN = '.*\\S.*';

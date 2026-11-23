@@ -13,8 +13,9 @@ export function useSavedNickname(): string | null {
   const [nickname, setNickname] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = loadSavedNickname();
-    if (saved !== null) {
+    // 공백뿐인 닉네임은 서버가 받지 않는다. 저장된 값이 그렇다면 없는 것으로 보고 새로 만든다.
+    const saved = loadSavedNickname()?.trim() ?? '';
+    if (saved !== '') {
       setNickname(saved);
       return;
     }

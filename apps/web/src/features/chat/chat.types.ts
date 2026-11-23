@@ -24,10 +24,13 @@ export type ChatRoomJoinToken = {
   isOwner: boolean;
 };
 
-/** 입장 토큰 요청 결과. 방이 없거나 닫혔으면 토큰 대신 그 사실을 받는다. */
+/**
+ * 입장 토큰 요청 결과. `refused`: 서버가 이 요청을 받아들이지 않는다 (없는 방, 닫힌 방, 잘못된 닉네임).
+ * 같은 요청을 다시 보내도 답이 같으므로 재시도하지 않는다.
+ */
 export type ChatRoomJoinTokenResult =
   | { status: 'issued'; joinToken: ChatRoomJoinToken }
-  | { status: 'roomNotFound' };
+  | { status: 'refused' };
 
 export type ChatRoomConnectionParams = {
   roomId: string;

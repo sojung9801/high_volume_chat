@@ -9,6 +9,7 @@ import { requestRoomIsOpen } from '../api/requestRoomIsOpen';
 import {
   CHAT_ENTRY_NOTICE_MESSAGE_KEYS,
   CHAT_NICKNAME_MAX_LENGTH,
+  CHAT_NICKNAME_PATTERN,
   CHAT_ROOM_ID_PATTERN,
 } from '../chat.constants';
 import type { ChatRoomEntryNotice } from '../chat.types';
@@ -37,7 +38,8 @@ export function ChatRoomEntryForm({ roomId, onRoomIdChange }: ChatRoomEntryFormP
   // 전에 쓰던 닉네임이 있으면 그대로, 없으면 새로 만든다. 방을 나왔다 들어와도 이름이 바뀌지 않는다.
   // 화면이 뜬 뒤에 채운다. 서버에서 미리 그릴 때 만들면 브라우저가 만든 값과 달라져 경고가 난다.
   useEffect(() => {
-    setNickname(loadSavedNickname() ?? generateRandomNickname());
+    const saved = loadSavedNickname()?.trim() ?? '';
+    setNickname(saved !== '' ? saved : generateRandomNickname());
   }, []);
 
   // 방에서 내보내져 돌아왔으면 그 이유를 한 번 보여준다. 꺼내면서 지우므로 새로고침하면 사라진다.
@@ -113,6 +115,7 @@ export function ChatRoomEntryForm({ roomId, onRoomIdChange }: ChatRoomEntryFormP
           className={styles.textInput}
           value={nickname}
           maxLength={CHAT_NICKNAME_MAX_LENGTH}
+          pattern={CHAT_NICKNAME_PATTERN}
           required
           onChange={(event) => setNickname(event.target.value)}
         />

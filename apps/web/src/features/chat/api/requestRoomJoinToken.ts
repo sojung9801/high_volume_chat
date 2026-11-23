@@ -1,4 +1,3 @@
-import { HTTP_STATUS_NOT_FOUND } from '../chat.constants';
 import type { ChatRoomJoinToken, ChatRoomJoinTokenResult } from '../chat.types';
 import { getApiBaseUrl } from '../chat.utils';
 
@@ -19,9 +18,10 @@ export async function requestRoomJoinToken(
     },
   );
 
-  // 방이 없거나 닫혔다. 다시 시도해도 소용없으므로 일시적인 실패와 구분해서 알린다.
-  if (response.status === HTTP_STATUS_NOT_FOUND) {
-    return { status: 'roomNotFound' };
+  // 4xx는 요청 자체가 받아들여지지 않은 것이다 (없는 방, 닫힌 방, 잘못된 닉네임).
+  // 다시 보내도 같은 답이므로, 재시도할 일시적인 실패(5xx, 연결 실패)와 구분해서 알린다.
+  if (response.status >= 400 && response.status < 500) {
+    return { status: 'refused' };
   }
   if (!response.ok) {
     throw new Error(`join token request failed with ${response.status}`);
