@@ -236,3 +236,11 @@
   font-size: 0.8em;
   font-weight: 600;
 }
+
+.time {
+  margin-right: 8px;
+  color: var(--color-muted);
+  font-size: 0.8em;
+  /* 숫자 폭을 고정해서 줄마다 닉네임 시작 위치가 흔들리지 않게 한다. */
+  font-variant-numeric: tabular-nums;
+}

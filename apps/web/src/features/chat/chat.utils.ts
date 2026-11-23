@@ -199,3 +199,18 @@ export function takeLobbyNotice(): ChatRoomEntryNotice | null {
     return null;
   }
 }
+
+const messageTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * 메시지 옆에 붙이는 시각 (예: 14:05). 보는 사람의 시간대로 보여준다.
+ * 포매터는 만드는 비용이 커서 언어별로 하나만 만들어 다시 쓴다 (메시지 한 줄마다 불린다).
+ */
+export function formatMessageTime(sentAtMs: number, locale: string): string {
+  let formatter = messageTimeFormatters.get(locale);
+  if (formatter === undefined) {
+    formatter = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false });
+    messageTimeFormatters.set(locale, formatter);
+  }
+  return formatter.format(sentAtMs);
+}
